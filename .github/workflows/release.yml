@@ -68,6 +68,7 @@ jobs:
           sudo apt-get install -y musl-tools
           rustup target add ${{ matrix.target }}
       - name: Build release
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             if [ "${{ matrix.use_cross }}" = "true" ]; then
@@ -102,7 +103,7 @@ jobs:
           set -euo pipefail
           VERSION='${{ needs.version.outputs.version }}'
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            BIN="target/x86_64-unknown-linux-musl/release/fauxmail"
+            BIN="target/${{ matrix.target }}/release/fauxmail"
           else
             BIN="target/release/fauxmail"
           fi
