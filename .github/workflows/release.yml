@@ -28,25 +28,66 @@ jobs:
           echo "Version: $VER"
 
   build:
-    name: Build and package (${{ matrix.os }})
+    name: Build and package (${{ matrix.os }} ${{ matrix.platform_label }})
     needs: version
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-14, windows-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            platform_label: linux-x86_64
+            use_cross: false
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            platform_label: linux-arm64
+            use_cross: true
+          - os: macos-14
+            target: native
+            platform_label: darwin-arm64
+            use_cross: false
+          - os: windows-latest
+            target: native
+            platform_label: windows-x86_64
+            use_cross: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Set up QEMU (for cross)
+        if: matrix.os == 'ubuntu-latest' && matrix.use_cross == true
+        uses: docker/setup-qemu-action@v3
+      - name: Install cross
+        if: matrix.os == 'ubuntu-latest' && matrix.use_cross == true
+        run: cargo install cross --locked
+      - name: Install musl for native linux build
+        if: matrix.os == 'ubuntu-latest' && matrix.use_cross == false
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          rustup target add ${{ matrix.target }}
       - name: Build release
-        run: cargo build --release
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            if [ "${{ matrix.use_cross }}" = "true" ]; then
+              cross build --release --target ${{ matrix.target }}
+            else
+              cargo build --release --target ${{ matrix.target }}
+            fi
+          else
+            cargo build --release
+          fi
       - name: Verify binary version
         shell: bash
         run: |
           set -euo pipefail
           VERSION='${{ needs.version.outputs.version }}'
-          BIN="target/release/fauxmail"
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            BIN="target/${{ matrix.target }}/release/fauxmail"
+          else
+            BIN="target/release/fauxmail"
+          fi
           EXE="$BIN"
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             EXE="${BIN}.exe"
@@ -60,7 +101,11 @@ jobs:
         run: |
           set -euo pipefail
           VERSION='${{ needs.version.outputs.version }}'
-          BIN="target/release/fauxmail"
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            BIN="target/x86_64-unknown-linux-musl/release/fauxmail"
+          else
+            BIN="target/release/fauxmail"
+          fi
           EXE="$BIN"
           # Windows binary extension
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
@@ -71,15 +116,7 @@ jobs:
             ls -la target/release || true
             exit 1
           fi
-          UNAME=$(uname -s || echo unknown)
-          ARCH=$(uname -m || echo unknown)
-          case "$UNAME" in
-            Linux) PLATFORM="linux-$ARCH" ;;
-            Darwin) PLATFORM="darwin-$ARCH" ;;
-            MINGW*|MSYS*|CYGWIN*) PLATFORM="windows-$ARCH" ;;
-            *) PLATFORM="unknown" ;;
-          esac
-          NAME="fauxmail-v${VERSION}-${PLATFORM}"
+          NAME="fauxmail-v${VERSION}-${{ matrix.platform_label }}"
           STAGE="$NAME"
           mkdir -p "$STAGE"
           cp "$EXE" "$STAGE/"
@@ -108,6 +145,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
+      - name: Generate checksums
+        run: |
+          cd dist
+          set -euo pipefail
+          if command -v sha256sum >/dev/null 2>&1; then
+            find . -type f \( -name 'fauxmail-*.tar.gz' -o -name 'fauxmail-*.zip' \) -print0 | xargs -0 sha256sum > SHA256SUMS.txt
+          else
+            find . -type f \( -name 'fauxmail-*.tar.gz' -o -name 'fauxmail-*.zip' \) -print0 | xargs -0 shasum -a 256 > SHA256SUMS.txt
+          fi
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -118,8 +164,10 @@ jobs:
 
             Binaries for:
             - macOS (Apple Silicon)
-            - Linux x86_64
+            - Linux x86_64 (static musl)
+            - Linux arm64 (static musl)
             - Windows x86_64
           files: |
             dist/**/fauxmail-*.tar.gz
             dist/**/fauxmail-*.zip
+            dist/SHA256SUMS.txt
