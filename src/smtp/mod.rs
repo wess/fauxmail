@@ -161,9 +161,9 @@ async fn handle_client(
       let id = Uuid::new_v4();
       match store_raw_message(&state, id, mail_from.clone(), rcpts.clone(), data).await {
         Ok(_) => {
-          let _ = log_db(&state, "INFO", &format!("stored message via SMTP: {}", id)).await;
+          let _ = log_db(&state, "INFO", &format!("stored message via SMTP: {id}")).await;
           writer
-            .write_all(format!("250 OK id={}\r\n", id).as_bytes())
+            .write_all(format!("250 OK id={id}\r\n").as_bytes())
             .await?;
         }
         Err(e) => {

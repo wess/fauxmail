@@ -21,7 +21,7 @@ async fn start_server() -> (String, JoinHandle<()>) {
   let handle = tokio::spawn(async move {
     axum::serve(listener, app).await.unwrap();
   });
-  (format!("http://{}", addr), handle)
+  (format!("http://{addr}"), handle)
 }
 
 #[tokio::test]
@@ -37,7 +37,7 @@ async fn send_json_and_list() {
   });
   let client = reqwest::Client::new();
   let res = client
-    .post(format!("{}/send", base))
+    .post(format!("{base}/send"))
     .json(&payload)
     .send()
     .await
@@ -47,11 +47,7 @@ async fn send_json_and_list() {
   let id = v.get("id").and_then(|x| x.as_str()).unwrap().to_string();
 
   // List messages
-  let res = client
-    .get(format!("{}/messages", base))
-    .send()
-    .await
-    .unwrap();
+  let res = client.get(format!("{base}/messages")).send().await.unwrap();
   assert!(res.status().is_success());
   let arr: serde_json::Value = res.json().await.unwrap();
   assert!(
@@ -86,7 +82,7 @@ async fn send_raw_and_fetch_html_and_attachments() {
   );
   let client = reqwest::Client::new();
   let res = client
-    .post(format!("{}/send/raw", base))
+    .post(format!("{base}/send/raw"))
     .body(eml.as_bytes().to_vec())
     .send()
     .await
@@ -97,7 +93,7 @@ async fn send_raw_and_fetch_html_and_attachments() {
 
   // Fetch HTML view
   let res = client
-    .get(format!("{}/messages/{}/html", base, id))
+    .get(format!("{base}/messages/{id}/html"))
     .send()
     .await
     .unwrap();
@@ -107,7 +103,7 @@ async fn send_raw_and_fetch_html_and_attachments() {
 
   // List attachments
   let res = client
-    .get(format!("{}/messages/{}/attachments", base, id))
+    .get(format!("{base}/messages/{id}/attachments"))
     .send()
     .await
     .unwrap();
@@ -119,7 +115,7 @@ async fn send_raw_and_fetch_html_and_attachments() {
 
   // Download attachment
   let res = client
-    .get(format!("{}/attachments/{}/download", base, att_id))
+    .get(format!("{base}/attachments/{att_id}/download"))
     .send()
     .await
     .unwrap();
@@ -137,7 +133,7 @@ async fn search_endpoint_filters_results() {
   for subj in ["Alpha One", "Beta Two"] {
     let payload = json!({ "to": ["you@example.test"], "subject": subj, "text": "x" });
     let res = client
-      .post(format!("{}/send", base))
+      .post(format!("{base}/send"))
       .json(&payload)
       .send()
       .await
@@ -147,7 +143,7 @@ async fn search_endpoint_filters_results() {
 
   // Search for 'Alpha'
   let res = client
-    .get(format!("{}/search?q=Alpha", base))
+    .get(format!("{base}/search?q=Alpha"))
     .send()
     .await
     .unwrap();
@@ -170,7 +166,7 @@ async fn clear_messages_and_logs_entry() {
   for subj in ["One", "Two"] {
     let payload = json!({ "to": ["you@example.test"], "subject": subj });
     let res = client
-      .post(format!("{}/send", base))
+      .post(format!("{base}/send"))
       .json(&payload)
       .send()
       .await
@@ -180,24 +176,20 @@ async fn clear_messages_and_logs_entry() {
 
   // Clear all
   let res = client
-    .delete(format!("{}/messages", base))
+    .delete(format!("{base}/messages"))
     .send()
     .await
     .unwrap();
   assert_eq!(res.status(), reqwest::StatusCode::NO_CONTENT);
 
   // Now list should be empty
-  let res = client
-    .get(format!("{}/messages", base))
-    .send()
-    .await
-    .unwrap();
+  let res = client.get(format!("{base}/messages")).send().await.unwrap();
   assert!(res.status().is_success());
   let arr: serde_json::Value = res.json().await.unwrap();
   assert_eq!(arr.as_array().unwrap().len(), 0);
 
   // Logs contain an entry about clearing
-  let res = client.get(format!("{}/logs", base)).send().await.unwrap();
+  let res = client.get(format!("{base}/logs")).send().await.unwrap();
   assert!(res.status().is_success());
   let logs: serde_json::Value = res.json().await.unwrap();
   let found = logs.as_array().unwrap().iter().any(|l| {
@@ -216,14 +208,14 @@ async fn logs_feed_contains_send_event() {
 
   let payload = json!({ "to": ["you@example.test"], "subject": "Log Me" });
   let res = client
-    .post(format!("{}/send", base))
+    .post(format!("{base}/send"))
     .json(&payload)
     .send()
     .await
     .unwrap();
   assert!(res.status().is_success());
 
-  let res = client.get(format!("{}/logs", base)).send().await.unwrap();
+  let res = client.get(format!("{base}/logs")).send().await.unwrap();
   assert!(res.status().is_success());
   let logs: serde_json::Value = res.json().await.unwrap();
   let found = logs.as_array().unwrap().iter().any(|l| {

@@ -102,7 +102,7 @@ pub async fn send_message(
     return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
   }
 
-  log_db(&state, "INFO", &format!("stored message via REST: {}", id))
+  log_db(&state, "INFO", &format!("stored message via REST: {id}"))
     .await
     .ok();
 
@@ -161,7 +161,7 @@ pub async fn send_raw(State(state): State<AppState>, body: axum::body::Bytes) ->
     // keep message; attachments are best-effort
   }
 
-  log_db(&state, "INFO", &format!("stored message via EML: {}", id))
+  log_db(&state, "INFO", &format!("stored message via EML: {id}"))
     .await
     .ok();
 

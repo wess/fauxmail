@@ -65,7 +65,7 @@ pub fn compute_list_params(
     if t.is_empty() {
       None
     } else {
-      Some(format!("%{}%", t))
+      Some(format!("%{t}%"))
     }
   });
   (limit, offset, order_by, dir, like)
@@ -78,13 +78,11 @@ pub async fn list_messages(
   let (limit, offset, order_by, dir, like) = compute_list_params(&params);
   let sql = if like.is_some() {
     format!(
-      "SELECT id, received_at, from_addr, to_recipients, subject, text_body, html_body, headers_json, raw_len FROM messages WHERE coalesce(from_addr,'') LIKE ? OR coalesce(subject,'') LIKE ? OR coalesce(text_body,'') LIKE ? OR to_recipients LIKE ? ORDER BY {} {} LIMIT ? OFFSET ?",
-      order_by, dir
+      "SELECT id, received_at, from_addr, to_recipients, subject, text_body, html_body, headers_json, raw_len FROM messages WHERE coalesce(from_addr,'') LIKE ? OR coalesce(subject,'') LIKE ? OR coalesce(text_body,'') LIKE ? OR to_recipients LIKE ? ORDER BY {order_by} {dir} LIMIT ? OFFSET ?"
     )
   } else {
     format!(
-      "SELECT id, received_at, from_addr, to_recipients, subject, text_body, html_body, headers_json, raw_len FROM messages ORDER BY {} {} LIMIT ? OFFSET ?",
-      order_by, dir
+      "SELECT id, received_at, from_addr, to_recipients, subject, text_body, html_body, headers_json, raw_len FROM messages ORDER BY {order_by} {dir} LIMIT ? OFFSET ?"
     )
   };
   let mut query = sqlx::query_as::<_, DbEmail>(&sql);

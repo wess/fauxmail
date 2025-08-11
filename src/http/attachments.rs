@@ -48,7 +48,7 @@ pub async fn download_attachment(
       if let Some(name) = a.filename {
         headers.insert(
           header::CONTENT_DISPOSITION,
-          format!("inline; filename=\"{}\"", name).parse().unwrap(),
+          format!("inline; filename=\"{name}\"").parse().unwrap(),
         );
       }
       (headers, a.content).into_response()
