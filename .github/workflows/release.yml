@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Determine version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.getver.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Read version from Cargo.toml
+        id: getver
+        run: |
+          set -euo pipefail
+          VER=$(sed -n 's/^version\s*=\s*"\([^"]*\)"/\1/p' Cargo.toml | head -n1)
+          if [ -z "$VER" ]; then
+            echo "Failed to parse version from Cargo.toml" >&2
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Version: $VER"
+
+  build:
+    name: Build and package (${{ matrix.os }})
+    needs: version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build release
+        run: cargo build --release
+      - name: Verify binary version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ needs.version.outputs.version }}'
+          BIN="target/release/fauxmail"
+          EXE="$BIN"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            EXE="${BIN}.exe"
+          fi
+          OUT=$("$EXE" --version | tr -d '\r')
+          echo "Binary reports: $OUT"
+          test "$OUT" = "fauxmail $VERSION" || { echo "Version mismatch" >&2; exit 1; }
+      - name: Package archive
+        id: pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ needs.version.outputs.version }}'
+          BIN="target/release/fauxmail"
+          EXE="$BIN"
+          # Windows binary extension
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            EXE="${BIN}.exe"
+          fi
+          if [[ ! -f "$EXE" ]]; then
+            echo "Binary not found: $EXE" >&2
+            ls -la target/release || true
+            exit 1
+          fi
+          UNAME=$(uname -s || echo unknown)
+          ARCH=$(uname -m || echo unknown)
+          case "$UNAME" in
+            Linux) PLATFORM="linux-$ARCH" ;;
+            Darwin) PLATFORM="darwin-$ARCH" ;;
+            MINGW*|MSYS*|CYGWIN*) PLATFORM="windows-$ARCH" ;;
+            *) PLATFORM="unknown" ;;
+          esac
+          NAME="fauxmail-v${VERSION}-${PLATFORM}"
+          STAGE="$NAME"
+          mkdir -p "$STAGE"
+          cp "$EXE" "$STAGE/"
+          # Include README for convenience
+          [ -f README.md ] && cp README.md "$STAGE/"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            # Create zip on Windows for better UX
+            powershell -NoLogo -NoProfile -Command "Compress-Archive -Path \"$STAGE/*\" -DestinationPath \"${NAME}.zip\" -Force"
+            echo "asset=${NAME}.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar czf "${NAME}.tar.gz" "$STAGE"
+            echo "asset=${NAME}.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pkg.outputs.asset }}
+          path: ${{ steps.pkg.outputs.asset }}
+
+  release:
+    name: Create GitHub Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: fauxmail v${{ needs.version.outputs.version }}
+          body: |
+            Automated release for fauxmail v${{ needs.version.outputs.version }}.
+
+            Binaries for:
+            - macOS (Apple Silicon)
+            - Linux x86_64
+            - Windows x86_64
+          files: |
+            dist/**/fauxmail-*.tar.gz
+            dist/**/fauxmail-*.zip
