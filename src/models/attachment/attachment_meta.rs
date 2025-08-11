@@ -6,9 +6,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct AttachmentMeta {
-    pub id: Uuid,
-    pub message_id: Uuid,
-    pub filename: Option<String>,
-    pub content_type: String,
-    pub size: i64,
+  pub id: Uuid,
+  pub message_id: Uuid,
+  pub filename: Option<String>,
+  pub content_type: String,
+  pub size: i64,
 }

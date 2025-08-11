@@ -4,53 +4,53 @@ use crate::{app::AppState, http::messages::ListParams, models::email::db_email::
 use axum::{extract::Query, response::Html};
 
 pub async fn ui_index(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    Query(params): Query<ListParams>,
+  axum::extract::State(state): axum::extract::State<AppState>,
+  Query(params): Query<ListParams>,
 ) -> Html<String> {
-    let (limit, offset, order_by, dir, like) = super::messages::compute_list_params(&params);
-    let sql = if like.is_some() {
-        format!(
-            "SELECT id, received_at, from_addr, to_recipients, subject, text_body, html_body, headers_json, raw_len FROM messages WHERE coalesce(from_addr,'') LIKE ? OR coalesce(subject,'') LIKE ? OR coalesce(text_body,'') LIKE ? OR to_recipients LIKE ? ORDER BY {} {} LIMIT ? OFFSET ?",
-            order_by, dir
-        )
-    } else {
-        format!(
-            "SELECT id, received_at, from_addr, to_recipients, subject, text_body, html_body, headers_json, raw_len FROM messages ORDER BY {} {} LIMIT ? OFFSET ?",
-            order_by, dir
-        )
-    };
-    let mut query = sqlx::query_as::<_, DbEmail>(&sql);
-    if let Some(like_val) = like.as_ref() {
-        query = query
-            .bind(like_val)
-            .bind(like_val)
-            .bind(like_val)
-            .bind(like_val);
-    }
-    let msgs: Vec<DbEmail> = query
-        .bind(limit as i64)
-        .bind(offset as i64)
-        .fetch_all(&state.db)
-        .await
-        .unwrap_or_default();
+  let (limit, offset, order_by, dir, like) = super::messages::compute_list_params(&params);
+  let sql = if like.is_some() {
+    format!(
+      "SELECT id, received_at, from_addr, to_recipients, subject, text_body, html_body, headers_json, raw_len FROM messages WHERE coalesce(from_addr,'') LIKE ? OR coalesce(subject,'') LIKE ? OR coalesce(text_body,'') LIKE ? OR to_recipients LIKE ? ORDER BY {} {} LIMIT ? OFFSET ?",
+      order_by, dir
+    )
+  } else {
+    format!(
+      "SELECT id, received_at, from_addr, to_recipients, subject, text_body, html_body, headers_json, raw_len FROM messages ORDER BY {} {} LIMIT ? OFFSET ?",
+      order_by, dir
+    )
+  };
+  let mut query = sqlx::query_as::<_, DbEmail>(&sql);
+  if let Some(like_val) = like.as_ref() {
+    query = query
+      .bind(like_val)
+      .bind(like_val)
+      .bind(like_val)
+      .bind(like_val);
+  }
+  let msgs: Vec<DbEmail> = query
+    .bind(limit as i64)
+    .bind(offset as i64)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
 
-    let mut rows = String::new();
-    for d in msgs.iter() {
-        let subj = d.subject.as_deref().unwrap_or("(no subject)");
-        let from = d.from_addr.as_deref().unwrap_or("(unknown)");
-        let to_list: Vec<String> = serde_json::from_str(&d.to_recipients).unwrap_or_default();
-        let to = if to_list.is_empty() {
-            "(none)".to_string()
-        } else {
-            to_list.join(", ")
-        };
-        rows.push_str(&format!(
+  let mut rows = String::new();
+  for d in msgs.iter() {
+    let subj = d.subject.as_deref().unwrap_or("(no subject)");
+    let from = d.from_addr.as_deref().unwrap_or("(unknown)");
+    let to_list: Vec<String> = serde_json::from_str(&d.to_recipients).unwrap_or_default();
+    let to = if to_list.is_empty() {
+      "(none)".to_string()
+    } else {
+      to_list.join(", ")
+    };
+    rows.push_str(&format!(
             "<tr><td><a href=\"/messages/{id}/html\">{id}</a></td><td>{when}</td><td>{from}</td><td>{to}</td><td>{subj}</td></tr>",
             id = d.id,
             when = d.received_at
         ));
-    }
-    let template = r#"<!doctype html>
+  }
+  let template = r#"<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -114,5 +114,5 @@ pub async fn ui_index(
 </body>
 </html>
 "#;
-    Html(template.replace("__ROWS__", &rows))
+  Html(template.replace("__ROWS__", &rows))
 }

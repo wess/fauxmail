@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 #[derive(Debug, FromRow)]
 pub struct AttachmentRow {
-    pub id: Uuid,
-    pub filename: Option<String>,
-    pub content_type: String,
-    pub content: Vec<u8>,
+  pub id: Uuid,
+  pub filename: Option<String>,
+  pub content_type: String,
+  pub content: Vec<u8>,
 }

@@ -5,6 +5,6 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct MessageWithAttachments {
-    pub message: ApiEmail,
-    pub attachments: Vec<AttachmentMeta>,
+  pub message: ApiEmail,
+  pub attachments: Vec<AttachmentMeta>,
 }
