@@ -77,7 +77,7 @@ pub async fn ui_index(
       const res = await fetch('/logs');
       const logs = await res.json();
       const el = document.getElementById('logs');
-      el.innerHTML = logs.map(l => `\n<span class=\"lvl-${'${'}l.level}\">[${'${'}l.level}]</span> ${'${'}l.ts} — ${'${'}l.message}`).join('');
+      el.innerHTML = logs.map(l => `\n<span class=\"lvl-${l.level}\">[${l.level}]</span> ${l.ts} — ${l.message}`).join('');
     }
     setInterval(loadLogs, 2000);
     window.addEventListener('load', loadLogs);
@@ -90,7 +90,7 @@ pub async fn ui_index(
         const to = (m.to && m.to.length) ? m.to.join(', ') : '(none)';
         const subj = m.subject || '(no subject)';
         const from = m.from || '(unknown)';
-        return `<tr><td><a href=\"/messages/${'${'}m.id}/html\">${'${'}m.id}</a></td><td>${'${'}m.received_at}</td><td>${'${'}from}</td><td>${'${'}to}</td><td>${'${'}subj}</td></tr>`;
+        return `<tr><td><a href=\"/messages/${m.id}/html\">${m.id}</a></td><td>${m.received_at}</td><td>${from}</td><td>${to}</td><td>${subj}</td></tr>`;
       }).join('');
     }
   </script>
